@@ -1,6 +1,9 @@
-import React, { useState, useRef, useCallback, useEffect } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { RecordingStatus } from './types';
-import { transcribeAudio } from './services/geminiService';
+// import { transcribeAudio } from './services/geminiService'; // not used in audio-only mode
+
+// 🔒 Hardcoded webhook URL
+const WEBHOOK_URL = 'https://raia.app.n8n.cloud/webhook/c07fdd47-b33c-4a59-82fd-58e76214f5d1';
 
 const MicIcon: React.FC<{ className?: string }> = ({ className }) => (
   <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
@@ -25,16 +28,14 @@ const LoaderIcon: React.FC<{ className?: string }> = ({ className }) => (
 );
 
 const SendIcon: React.FC<{ className?: string }> = ({ className }) => (
-    <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
+  <svg className={className} xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="m22 2-7 20-4-9-9-4Z"/><path d="M22 2 11 13"/></svg>
 );
-
 
 function App() {
   const [status, setStatus] = useState<RecordingStatus>(RecordingStatus.IDLE);
   const [name, setName] = useState('');
   const [clientName, setClientName] = useState('');
   const [companyName, setCompanyName] = useState('');
-  const [webhookUrl, setWebhookUrl] = useState('');
   const [transcription, setTranscription] = useState('');
   const [audioBlob, setAudioBlob] = useState<Blob | null>(null);
   const [isSending, setIsSending] = useState(false);
@@ -60,17 +61,26 @@ function App() {
   const startRecording = async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-      mediaRecorderRef.current = new MediaRecorder(stream);
+
+      // pick a supported MIME (better cross-browser)
+      const mimeType =
+        MediaRecorder.isTypeSupported('audio/webm;codecs=opus') ? 'audio/webm;codecs=opus' :
+        MediaRecorder.isTypeSupported('audio/ogg;codecs=opus')  ? 'audio/ogg;codecs=opus'  :
+        '';
+
+      mediaRecorderRef.current = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
       audioChunksRef.current = [];
 
       mediaRecorderRef.current.ondataavailable = (event) => {
-        audioChunksRef.current.push(event.data);
+        if (event.data && event.data.size > 0) audioChunksRef.current.push(event.data);
       };
 
       mediaRecorderRef.current.onstop = () => {
-        const blob = new Blob(audioChunksRef.current, { type: 'audio/webm' });
+        const chunks = audioChunksRef.current;
+        const detected = chunks[0]?.type || 'audio/webm';
+        const blob = new Blob(chunks, { type: detected });
         setAudioBlob(blob);
-        stream.getTracks().forEach(track => track.stop()); // Stop microphone access
+        stream.getTracks().forEach(track => track.stop());
       };
 
       mediaRecorderRef.current.start();
@@ -91,98 +101,56 @@ function App() {
   const stopRecording = () => {
     if (mediaRecorderRef.current && status === RecordingStatus.RECORDING) {
       mediaRecorderRef.current.stop();
-      if(timerIntervalRef.current) clearInterval(timerIntervalRef.current);
+      if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
-      setStatus(RecordingStatus.TRANSCRIBING);
+      // audio-only mode: mark ready immediately
+      setStatus(RecordingStatus.SUCCESS);
     }
   };
 
-  /*const handleSendToWebhook = async () => {
-    if (!webhookUrl || !audioBlob) {
-        setError('Webhook URL and transcription are required.');
-        return;
+  // Audio-only mode (skip transcription)
+  useEffect(() => {
+    if (!audioBlob) return;
+    setTranscription('');               // keep empty
+    setStatus(RecordingStatus.SUCCESS); // allow submit path
+  }, [audioBlob]);
+
+  const handleSendToWebhook = async () => {
+    if (!audioBlob) {
+      setError('Please record something before submitting.');
+      return;
     }
-    try { new URL(webhookUrl); } catch (_) {
-        setError('Please enter a valid webhook URL.');
-        return;
-    }
+
     setIsSending(true);
     setError(null);
     try {
-        const payload = { name, clientName, companyName, recordedAt: new Date().toISOString() };
-        const response = await fetch(webhookUrl, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(payload),
-        });
-        if (!response.ok) throw new Error(`Webhook failed with status: ${response.status}`);
-        resetState(); // Reset on success
-    } catch (err) {
-        console.error('Failed to send to webhook:', err);
-        setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+      const form = new FormData();
+      const mime = audioBlob.type || 'audio/webm';
+      form.append('file', audioBlob, `recording.${mime.includes('ogg') ? 'ogg' : 'webm'}`);
+      form.append('mimeType', mime);
+      form.append('name', name);
+      form.append('clientName', clientName);
+      form.append('companyName', companyName);
+      form.append('recordedAt', new Date().toISOString());
+      if (transcription) form.append('transcript', transcription); // optional
+
+      const res = await fetch(WEBHOOK_URL, { method: 'POST', body: form });
+      if (!res.ok) throw new Error(`Webhook failed: ${res.status} ${res.statusText}`);
+
+      resetState();
+    } catch (e) {
+      console.error('Failed to send to webhook:', e);
+      setError(e instanceof Error ? e.message : 'An unknown error occurred.');
     } finally {
-        setIsSending(false);
+      setIsSending(false);
     }
   };
-  */
-  const handleSendToWebhook = async () => {
-  if (!webhookUrl || !audioBlob) {
-    setError('Webhook URL and an audio recording are required.');
-    return;
-  }
-  try { new URL(webhookUrl); } catch { setError('Please enter a valid webhook URL.'); return; }
 
-  setIsSending(true);
-  setError(null);
-  try {
-    const form = new FormData();
-    const mime = audioBlob.type || 'audio/webm';
-    form.append('file', audioBlob, `recording.${mime.includes('ogg') ? 'ogg' : 'webm'}`); // <-- binary
-    form.append('mimeType', mime);
-    form.append('name', name);
-    form.append('clientName', clientName);
-    form.append('companyName', companyName);
-    form.append('recordedAt', new Date().toISOString());
-    if (transcription) form.append('transcript', transcription); // optional
+  const isFormDisabled =
+    status !== RecordingStatus.IDLE &&
+    status !== RecordingStatus.SUCCESS &&
+    status !== RecordingStatus.ERROR;
 
-    const res = await fetch(webhookUrl, { method: 'POST', body: form });
-    if (!res.ok) throw new Error(`Webhook failed: ${res.status} ${res.statusText}`);
-    resetState();
-  } catch (e) {
-    setError(e instanceof Error ? e.message : String(e));
-  } finally {
-    setIsSending(false);
-  }
-};
-
-
-/*
-  useEffect(() => {
-  if (!audioBlob) return;
-  
-  const processTranscription = async () => {
-      try {
-          const result = await transcribeAudio(audioBlob);
-          setTranscription(result);
-          setStatus(RecordingStatus.SUCCESS);
-      } catch (err) {
-          console.error(err);
-          setError(err instanceof Error ? err.message : "Transcription failed.");
-          setStatus(RecordingStatus.ERROR);
-      }
-  };
-  processTranscription();
-}, [audioBlob]);
-*/
-  useEffect(() => {
-  if (!audioBlob) return;
-  // Skipping transcription on purpose — audio-only mode
-  setTranscription("");               // keep empty
-  setStatus(RecordingStatus.SUCCESS); // allow submit path
-}, [audioBlob]);
-
-
-  const isFormDisabled = status !== RecordingStatus.IDLE && status !== RecordingStatus.SUCCESS && status !== RecordingStatus.ERROR;
   const formatTime = (seconds: number) => {
     const mins = Math.floor(seconds / 60).toString().padStart(2, '0');
     const secs = (seconds % 60).toString().padStart(2, '0');
@@ -194,39 +162,36 @@ function App() {
       <div className="w-full max-w-lg mx-auto space-y-6">
         <header className="text-center">
           <h1 className="text-3xl font-bold text-cyan-400">Voice Note Transcriber</h1>
-          <p className="text-gray-400">Record, Transcribe with AI, and Send.</p>
+          <p className="text-gray-400">Record and Send (audio-only for now).</p>
         </header>
 
         {error && (
-            <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative" role="alert">
-                <strong className="font-bold">Error: </strong>
-                <span className="block sm:inline">{error}</span>
-            </div>
+          <div className="bg-red-900/50 border border-red-700 text-red-300 px-4 py-3 rounded-lg relative" role="alert">
+            <strong className="font-bold">Error: </strong>
+            <span className="block sm:inline">{error}</span>
+          </div>
         )}
 
         {/* --- Metadata Form --- */}
         <div className="bg-gray-800 p-6 rounded-xl shadow-lg space-y-4">
-            <h2 className="text-xl font-semibold text-gray-200 border-b border-gray-700 pb-2">Metadata</h2>
-            <div>
-              <label htmlFor="name" className="block text-sm font-medium text-gray-400 mb-1">Your Name</label>
-              <input type="text" id="name" value={name} onChange={e => setName(e.target.value)} disabled={isFormDisabled}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition" />
-            </div>
-             <div>
-              <label htmlFor="clientName" className="block text-sm font-medium text-gray-400 mb-1">Client Name</label>
-              <input type="text" id="clientName" value={clientName} onChange={e => setClientName(e.target.value)} disabled={isFormDisabled}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition" />
-            </div>
-             <div>
-              <label htmlFor="companyName" className="block text-sm font-medium text-gray-400 mb-1">Company Name</label>
-              <input type="text" id="companyName" value={companyName} onChange={e => setCompanyName(e.target.value)} disabled={isFormDisabled}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition" />
-            </div>
-             <div>
-              <label htmlFor="webhookUrl" className="block text-sm font-medium text-gray-400 mb-1">n8n Webhook URL</label>
-              <input type="url" id="webhookUrl" value={webhookUrl} onChange={e => setWebhookUrl(e.target.value)} disabled={isFormDisabled}
-                  className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition" />
-            </div>
+          <h2 className="text-xl font-semibold text-gray-200 border-b border-gray-700 pb-2">Metadata</h2>
+          <div>
+            <label htmlFor="name" className="block text-sm font-medium text-gray-400 mb-1">Your Name</label>
+            <input type="text" id="name" value={name} onChange={e => setName(e.target.value)} disabled={isFormDisabled}
+              className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition" />
+          </div>
+          <div>
+            <label htmlFor="clientName" className="block text-sm font-medium text-gray-400 mb-1">Client Name</label>
+            <input type="text" id="clientName" value={clientName} onChange={e => setClientName(e.target.value)} disabled={isFormDisabled}
+              className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition" />
+          </div>
+          <div>
+            <label htmlFor="companyName" className="block text-sm font-medium text-gray-400 mb-1">Company Name</label>
+            <input type="text" id="companyName" value={companyName} onChange={e => setCompanyName(e.target.value)} disabled={isFormDisabled}
+              className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition" />
+          </div>
+
+          {/* Webhook input removed — using hardcoded WEBHOOK_URL */}
         </div>
 
         {/* --- Recorder Controls --- */}
@@ -243,7 +208,7 @@ function App() {
               `}
             >
               {status === RecordingStatus.TRANSCRIBING ? <LoaderIcon className="w-10 h-10 text-white" /> :
-               status === RecordingStatus.RECORDING ? <StopIcon className="w-8 h-8 text-white" /> : 
+               status === RecordingStatus.RECORDING ? <StopIcon className="w-8 h-8 text-white" /> :
                <MicIcon className="w-8 h-8 text-white" />}
             </button>
           </div>
@@ -254,27 +219,27 @@ function App() {
             </p>
           </div>
         </div>
-        
+
         {/* --- Results --- */}
         {(transcription || audioBlob) && (
-            <div className="bg-gray-800 p-6 rounded-xl shadow-lg space-y-4">
-                <h2 className="text-xl font-semibold text-gray-200 border-b border-gray-700 pb-2">Result</h2>
-                {audioBlob && <audio src={URL.createObjectURL(audioBlob)} controls className="w-full" />}
-                <textarea
-                    value={transcription}
-                    readOnly
-                    placeholder="Transcription will appear here..."
-                    className="w-full h-48 bg-gray-900/50 border border-gray-700 rounded-md p-3 text-gray-300 resize-none focus:outline-none"
-                />
-                <button
-                    onClick={handleSendToWebhook}
-                    disabled={!audioBlob || isSending || !webhookUrl}
-                    className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition"
-                >
-                    {isSending ? <LoaderIcon className="w-5 h-5"/> : <SendIcon className="w-5 h-5"/>}
-                    {isSending ? 'Sending...' : 'Submit'}
-                </button>
-            </div>
+          <div className="bg-gray-800 p-6 rounded-xl shadow-lg space-y-4">
+            <h2 className="text-xl font-semibold text-gray-200 border-b border-gray-700 pb-2">Result</h2>
+            {audioBlob && <audio src={URL.createObjectURL(audioBlob)} controls className="w-full" />}
+            <textarea
+              value={transcription}
+              readOnly
+              placeholder="(Audio-only mode: no transcription)"
+              className="w-full h-48 bg-gray-900/50 border border-gray-700 rounded-md p-3 text-gray-300 resize-none focus:outline-none"
+            />
+            <button
+              onClick={handleSendToWebhook}
+              disabled={!audioBlob || isSending}
+              className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition"
+            >
+              {isSending ? <LoaderIcon className="w-5 h-5"/> : <SendIcon className="w-5 h-5"/>}
+              {isSending ? 'Sending...' : 'Submit'}
+            </button>
+          </div>
         )}
       </div>
     </div>
