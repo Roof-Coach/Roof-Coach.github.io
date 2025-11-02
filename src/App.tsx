@@ -97,7 +97,7 @@ function App() {
     }
   };
 
-  const handleSendToWebhook = async () => {
+  /*const handleSendToWebhook = async () => {
     if (!webhookUrl || !audioBlob) {
         setError('Webhook URL and transcription are required.');
         return;
@@ -124,23 +124,66 @@ function App() {
         setIsSending(false);
     }
   };
+  */
+  const handleSendToWebhook = async () => {
+  if (!webhookUrl || !audioBlob) {
+    setError('Webhook URL and an audio recording are required.');
+    return;
+  }
+  try { new URL(webhookUrl); } catch {
+    setError('Please enter a valid webhook URL.');
+    return;
+  }
 
+  setIsSending(true);
+  setError(null);
+  try {
+    const form = new FormData();
+    form.append('file', audioBlob, 'recording.webm');               // ← the audio
+    form.append('mimeType', audioBlob.type || 'audio/webm');        // optional
+    form.append('name', name);
+    form.append('clientName', clientName);
+    form.append('companyName', companyName);
+    form.append('recordedAt', new Date().toISOString());
+    if (transcription) form.append('transcript', transcription);    // optional
+
+    const res = await fetch(webhookUrl, { method: 'POST', body: form });
+    if (!res.ok) throw new Error(`Webhook failed: ${res.status} ${res.statusText}`);
+
+    resetState(); // success
+  } catch (err) {
+    console.error('Failed to send to webhook:', err);
+    setError(err instanceof Error ? err.message : 'An unknown error occurred.');
+  } finally {
+    setIsSending(false);
+  }
+};
+
+/*
   useEffect(() => {
-    if (!audioBlob) return;
-    
-    const processTranscription = async () => {
-        try {
-            const result = await transcribeAudio(audioBlob);
-            setTranscription(result);
-            setStatus(RecordingStatus.SUCCESS);
-        } catch (err) {
-            console.error(err);
-            setError(err instanceof Error ? err.message : "Transcription failed.");
-            setStatus(RecordingStatus.ERROR);
-        }
-    };
-    processTranscription();
-  }, [audioBlob]);
+  if (!audioBlob) return;
+  
+  const processTranscription = async () => {
+      try {
+          const result = await transcribeAudio(audioBlob);
+          setTranscription(result);
+          setStatus(RecordingStatus.SUCCESS);
+      } catch (err) {
+          console.error(err);
+          setError(err instanceof Error ? err.message : "Transcription failed.");
+          setStatus(RecordingStatus.ERROR);
+      }
+  };
+  processTranscription();
+}, [audioBlob]);
+*/
+  useEffect(() => {
+  if (!audioBlob) return;
+  // Skipping transcription on purpose — audio-only mode
+  setTranscription("");               // keep empty
+  setStatus(RecordingStatus.SUCCESS); // allow submit path
+}, [audioBlob]);
+
 
   const isFormDisabled = status !== RecordingStatus.IDLE && status !== RecordingStatus.SUCCESS && status !== RecordingStatus.ERROR;
   const formatTime = (seconds: number) => {
