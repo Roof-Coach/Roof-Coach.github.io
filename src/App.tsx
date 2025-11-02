@@ -98,7 +98,7 @@ function App() {
   };
 
   const handleSendToWebhook = async () => {
-    if (!webhookUrl || !transcription) {
+    if (!webhookUrl || !audioBlob) {
         setError('Webhook URL and transcription are required.');
         return;
     }
