@@ -41,7 +41,7 @@ function App() {
   const [isSending, setIsSending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [recordingTime, setRecordingTime] = useState(0);
-
+  const [consent, setConsent] = useState(false);
   const mediaRecorderRef = useRef<MediaRecorder | null>(null);
   const audioChunksRef = useRef<Blob[]>([]);
   const timerIntervalRef = useRef<number | null>(null);
@@ -231,6 +231,20 @@ function App() {
               placeholder="(Audio-only mode: no transcription)"
               className="w-full h-48 bg-gray-900/50 border border-gray-700 rounded-md p-3 text-gray-300 resize-none focus:outline-none"
             />
+            <div className="flex items-start gap-3">
+      <input
+        id="consent"
+        type="radio"
+        name="consent"
+        checked={consent}
+        onChange={() => setConsent(true)}
+        className="mt-1 h-4 w-4 text-cyan-500 focus:ring-cyan-500 border-gray-600 bg-gray-700"
+      />
+      <label htmlFor="consent" className="text-sm text-gray-300 leading-5">
+        I confirm that I have obtained consent from all participants in this recording, as required by applicable laws in my state.
+      </label>
+    </div>
+
             <button
               onClick={handleSendToWebhook}
               disabled={!audioBlob || isSending}
