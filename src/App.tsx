@@ -138,19 +138,25 @@ function App() {
   setIsSending(true);
   setError(null);
   try {
+    // Build multipart form with the actual audio file
     const form = new FormData();
-    form.append('file', audioBlob, 'recording.webm');               // ← the audio
-    form.append('mimeType', audioBlob.type || 'audio/webm');        // optional
+    const mime = audioBlob.type || 'audio/webm';
+    form.append('file', audioBlob, `recording.${mime.includes('ogg') ? 'ogg' : 'webm'}`);
+    form.append('mimeType', mime);
     form.append('name', name);
     form.append('clientName', clientName);
     form.append('companyName', companyName);
     form.append('recordedAt', new Date().toISOString());
-    if (transcription) form.append('transcript', transcription);    // optional
+    if (transcription) form.append('transcript', transcription); // optional
 
-    const res = await fetch(webhookUrl, { method: 'POST', body: form });
+    const res = await fetch(webhookUrl, {
+      method: 'POST',
+      body: form,                 // <-- no manual headers; browser sets the boundary
+      // credentials: 'include',  // uncomment if your webhook needs cookies
+    });
+
     if (!res.ok) throw new Error(`Webhook failed: ${res.status} ${res.statusText}`);
-
-    resetState(); // success
+    resetState();
   } catch (err) {
     console.error('Failed to send to webhook:', err);
     setError(err instanceof Error ? err.message : 'An unknown error occurred.');
