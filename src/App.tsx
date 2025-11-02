@@ -228,7 +228,7 @@ function App() {
                 />
                 <button
                     onClick={handleSendToWebhook}
-                    disabled={!transcription || isSending || !webhookUrl}
+                    disabled={!audioBlob || isSending || !webhookUrl}
                     className="w-full flex items-center justify-center gap-2 bg-green-600 hover:bg-green-500 disabled:bg-gray-600 disabled:cursor-not-allowed text-white font-bold py-3 px-4 rounded-lg transition"
                 >
                     {isSending ? <LoaderIcon className="w-5 h-5"/> : <SendIcon className="w-5 h-5"/>}
