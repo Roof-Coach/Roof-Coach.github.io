@@ -109,7 +109,7 @@ function App() {
     setIsSending(true);
     setError(null);
     try {
-        const payload = { name, clientName, companyName, transcription, recordedAt: new Date().toISOString() };
+        const payload = { name, clientName, companyName, recordedAt: new Date().toISOString() };
         const response = await fetch(webhookUrl, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
