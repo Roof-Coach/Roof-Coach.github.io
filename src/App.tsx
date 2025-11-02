@@ -174,7 +174,7 @@ function App() {
 
         {/*  Metadata  */}
         <div className="bg-gray-800 p-6 rounded-xl shadow-lg space-y-4">
-          <h2 className="text-xl font-semibold text-gray-200 border-b border-gray-700 pb-2">Metadata</h2>
+          <h2 className="text-xl font-semibold text-gray-200 border-b border-gray-700 pb-2">Call Information</h2>
           <div>
             <label htmlFor="name" className="block text-sm font-medium text-gray-400 mb-1">Your Name</label>
             <input type="text" id="name" value={name} onChange={e => setName(e.target.value)} disabled={isFormDisabled}
