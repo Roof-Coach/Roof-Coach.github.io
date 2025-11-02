@@ -232,13 +232,13 @@ function App() {
               className="w-full h-48 bg-gray-900/50 border border-gray-700 rounded-md p-3 text-gray-300 resize-none focus:outline-none"
             />
             */}
-            <div className="flex items-start gap-3"> 
+      <div className="flex items-start gap-3"> 
       <input
         id="consent"
-        type="radio"
+        type="checkbox"
         name="consent"
         checked={consent}
-        onChange={() => setConsent(true)}
+        onChange={(e) => setConsent(true)}
         className="mt-1 h-4 w-4 text-cyan-500 focus:ring-cyan-500 border-gray-600 bg-gray-700"
       />
       <label htmlFor="consent" className="text-sm text-gray-300 leading-5">
