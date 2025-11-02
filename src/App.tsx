@@ -225,13 +225,14 @@ function App() {
           <div className="bg-gray-800 p-6 rounded-xl shadow-lg space-y-4">
             <h2 className="text-xl font-semibold text-gray-200 border-b border-gray-700 pb-2">Result</h2>
             {audioBlob && <audio src={URL.createObjectURL(audioBlob)} controls className="w-full" />}
-            <textarea
+            {/* <textarea
               value={transcription}
               readOnly
               placeholder="(Audio-only mode: no transcription)"
               className="w-full h-48 bg-gray-900/50 border border-gray-700 rounded-md p-3 text-gray-300 resize-none focus:outline-none"
             />
-            <div className="flex items-start gap-3">
+            */}
+            <div className="flex items-start gap-3"> 
       <input
         id="consent"
         type="radio"
