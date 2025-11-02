@@ -1,0 +1,7 @@
+{
+  "name": "Voice Note Transcriber & Webhook",
+  "description": "A web application to record voice notes, transcribe them using Gemini, and send the data to a webhook for further processing like in n8n.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
