@@ -2,7 +2,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { RecordingStatus } from './types';
 // import { transcribeAudio } from './services/geminiService'; // not used in audio-only mode
 
-// 🔒 Hardcoded webhook URL
+
 const WEBHOOK_URL = 'https://raia.app.n8n.cloud/webhook/c07fdd47-b33c-4a59-82fd-58e76214f5d1';
 
 const MicIcon: React.FC<{ className?: string }> = ({ className }) => (
@@ -103,12 +103,12 @@ function App() {
       mediaRecorderRef.current.stop();
       if (timerIntervalRef.current) clearInterval(timerIntervalRef.current);
       timerIntervalRef.current = null;
-      // audio-only mode: mark ready immediately
+      // audio-only: mark ready ASAP fr
       setStatus(RecordingStatus.SUCCESS);
     }
   };
 
-  // Audio-only mode (skip transcription)
+  // Audio-only 
   useEffect(() => {
     if (!audioBlob) return;
     setTranscription('');               // keep empty
@@ -172,7 +172,7 @@ function App() {
           </div>
         )}
 
-        {/* --- Metadata Form --- */}
+        {/*  Metadata  */}
         <div className="bg-gray-800 p-6 rounded-xl shadow-lg space-y-4">
           <h2 className="text-xl font-semibold text-gray-200 border-b border-gray-700 pb-2">Metadata</h2>
           <div>
@@ -191,10 +191,10 @@ function App() {
               className="w-full bg-gray-700 border border-gray-600 rounded-md px-3 py-2 text-white placeholder-gray-500 focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 transition" />
           </div>
 
-          {/* Webhook input removed — using hardcoded WEBHOOK_URL */}
+         
         </div>
 
-        {/* --- Recorder Controls --- */}
+        {/*  Recorder Controls */}
         <div className="flex flex-col items-center justify-center bg-gray-800 p-6 rounded-xl shadow-lg">
           <div className="relative flex items-center justify-center w-32 h-32">
             {status === RecordingStatus.RECORDING && <div className="absolute inset-0 bg-red-500 rounded-full animate-pulse"></div>}
