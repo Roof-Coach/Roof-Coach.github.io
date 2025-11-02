@@ -238,7 +238,7 @@ function App() {
         type="checkbox"
         name="consent"
         checked={consent}
-        onChange={(e) => setConsent(true)}
+        onChange={(e) => setConsent(e.target.checked)}
         className="mt-1 h-4 w-4 text-cyan-500 focus:ring-cyan-500 border-gray-600 bg-gray-700"
       />
       <label htmlFor="consent" className="text-sm text-gray-300 leading-5">
